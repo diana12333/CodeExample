@@ -1,0 +1,203 @@
+---
+title: "Least-squares fitting"
+author: "Dr. Brinda"
+date: "September 3, 2019"
+output: html_document
+---
+body{
+ font-family: Helvetica;
+ font-size: 20pt;
+}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Task 1 (warm-up)
+
+> Suppose $(x_1, x_2, x_3) = (3, 4, 3)$ and $(y_1, y_2, y_3) = (8.2, 4.6, 4.4)$. Without using the least-squares line formula, identify the least-squares line, and explain your answer. Sketch a scatterplot, and draw the least-squares line in red.
+
+Briefly explain your answer here.
+we can use minimize the sum of squared error(residuals) to solve the least-quares line.
+$$
+   (y - \hat{y})^2= \sum_i(y_i - a - bx_i)^2
+$$
+we can use derivative with respect to a and b make the derivative equal to 0 to get the local optimization, which is
+$$
+    -2\sum_i(y_i -a -bx_i) = 0 \\
+     a = \bar{y}- b\bar{x}
+$$
+Then, we can calculate the derivative with respect to b
+\begin{align*}
+    -2\sum_i(y_i -\bar{y}-(x_i - \bar{x})b)& = 0\\
+    \hat b&=\frac{\sum_i(y_i-\bar{y})(x_i - \bar{x})}{\sum_i(x_i -\bar{x})^2}\\
+    \hat a&= \bar{y}-\frac{\sum_i(y_i-\bar{y})(x_i - \bar{x})}{\sum_i(x_i -\bar{x})^2}\bar{x}
+\end{align*}
+
+
+```{r}
+x <- c(3,4,3)
+y <- c(8.2, 4.6, 4.4)
+
+b.hat <- sum((y -mean(y))*(x-mean(x)))/ sum((x - mean(x))^2);b.hat
+b.hat <- as.vector(b.hat) 
+a.hat <- mean(y) - b.hat*mean(x);a.hat
+
+plot(x,y)
+abline(a.hat, b.hat, col="red")
+```
+
+
+
+## AirPassenger data least-squares line (review)
+
+From last time:
+
+```{r}
+y <- AirPassengers
+x <- seq(1949, 1960+11/12, by=1/12)
+
+plot(x, y, type="l", xlab="time", ylab="thousands of international airline passengers")
+
+# least-squares slope
+b.hat <- (t(x - mean(x)) %*% y)/sum((x - mean(x))^2)
+b.hat
+b.hat <- as.vector(b.hat)
+b.hat
+
+# least-squares intercept
+a.hat <- mean(y) - b.hat*mean(x)
+a.hat
+
+
+# using the design matrix formula
+X <- cbind(1, x)
+solve(t(X) %*% X) %*% t(X) %*% y
+
+
+# A line doesn't fully capture the pattern exhibited this data,
+# but here's the least-squares line anyway.
+abline(a.hat, b.hat, col="red")
+
+
+# the least-squares predictions are
+y.hat <- a.hat + b.hat*x
+
+# or using the design matrix formula
+# X %*% solve(t(X) %*% X) %*% t(X) %*% y
+```
+
+
+```{r}
+# Verifying the ANOVA decomposition
+
+# variance of prediction vector
+var(y.hat)
+# equal to variance of regression vector
+var(y.hat - mean(y))
+
+# variance of residuals
+var(y - y.hat)
+
+# sum of the two variances
+var(y.hat) + var(y - y.hat)
+
+# variance of response vector
+var(y)
+```
+
+---
+
+
+## AirPassenger data least-squares quadratic
+
+
+Next, let's find the least-squares quadratic, that is, the function of the form $a + b*x + c*x^2$ that minimizes the sum of squared residuals. The trick is to treat $\mathbf{x}^2$ as another variable and add a corresponding column to the design matrix.
+
+
+```{r}
+X <- cbind(1, x, x^2)
+```
+
+If you try the following code, you get an error. Your computer has numerical difficulty because the explanatory vectors are pointing too close to the same direction.
+
+```{r eval=FALSE}
+ls.coeffs <- solve(t(X) %*% X) %*% t(X) %*% y
+```
+
+Recall that we can replace $\mathbf{x}$ by $\mathbf{x} - \mathbf{\bar{x}}$ which is orthogonal to the $\mathbf{1}$ vector without changing their span.
+
+```{r}
+X <- cbind(1, x - mean(x), (x - mean(x))^2)
+ls.coeffs <- solve(t(X) %*% X) %*% t(X) %*% y
+```
+
+
+
+Let's draw the least-squares quadratic curve onto our plot
+
+```{r}
+plot(x, y, type="l", xlab="time", ylab="thousands of international airline passengers")
+abline(a.hat, b.hat, col="red")
+y.hat2 <- ls.coeffs[1] + ls.coeffs[2]*(x - mean(x)) + ls.coeffs[3]*(x - mean(x))^2
+lines(x, y.hat2, col="blue")
+```
+
+When the centered version of $\mathbf{x}$ is used, the least-squares coefficients are:
+```{r}
+round(ls.coeffs, 2)
+```
+
+
+## Task 2 (simple)
+
+> Rearrange the expression into the form $a + b x + c x^2$ in order to identify the least-squares intercept and least-squares coefficients of $x$ and $x^2$. You don't need to show your work, but when you've found the least-squares coefficients, type them into the equation below, replacing $\hat{a}$, $\hat{b}$, and $\hat{c}$.
+
+\[
+y = 3794881 -3913.926 x + 1.009 x^2
+\]
+
+\begin{align*}
+ y&= a + b(x- \bar{x}) + c(x- \bar{x})^2\\
+  &= [a-b\bar{x}+c{\bar{x}}^2]+(b-2c\bar{x})+cx^2\\
+\end{align*}
+
+
+---
+
+
+## Task 3 (more challenging)
+
+> Identify a vector whose variance is equal to:
+answer should be$y.hat -y.hat2$ 
+
+```{r}
+var(y - y.hat) - var(y - y.hat2)
+
+```
+
+> (Hint: think about Figure 2.12 from the textbook.) Explain your answer by identifying a right triangle and invoking the 
+
+Due to the character of orthogonal projection, we have $y_2$ is the orthogonal projection to $span \left\{1,x,x^2 \right\}$ and $y_1$ is the orthogonal projection to $span \left\{1,x \right\}$,thus, $y_2$, $y_1$ and their linear combination all in $span \left\{1,x,x^2 \right\}$  ,so $y-y_2$ should orthogonal to $span \left\{1,x,x^2 \right\}$, $y_1-y_2 \in span \left\{1,x,x^2 \right\}$
+Then,we have that the $y_1-y_2$ and $y-y_2$ are two sides of a right triangular. 
+According to the 
+Pythagorean theorem
+    $$\left\| y -y_1\right\|^2 = \left\| y_2 -y_1\right\|^2 + \left\| y -y_2\right\|^2$$
+divided by $n$ is the empirical variance 
+
+
+
+
+
+> In the R code block below, use the "var" function to check your answer.
+
+
+```{r}
+var(y.hat-y.hat2)
+```
+
+
+
+
+
