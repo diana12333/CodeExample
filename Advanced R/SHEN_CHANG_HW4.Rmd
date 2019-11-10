@@ -1,0 +1,116 @@
+---
+title: "SHEN_CHANG_HW4"
+author: "ChangShen"
+date: "10/28/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##HW4
+1.Set path and package
+
+2.use pacman to install and load packages
+
+```{r 1}
+setwd("/Users/dianshen/Desktop/SAS/Assignment2/")
+if(!"pacman" %in%installed.packages()) install.packages("pacman")
+library(pacman)
+p_load(dplyr,tidyr,plyr,knitr,readr)
+```
+
+## Read files
+
+###read in the 3 files you need
+
+*Demographics* - include participant information: PATNO, Year, Gender, Residency, Major\n
+
+*Assess_original* - orignal assement by different courses in long format :PATNO,QOL,Scale\n
+
+*Assess_original* - make up assement by differen coursed in long format :PATNO,QOL,Scale\n
+
+```{r 2}
+Demographics<-read_csv(url("https://raw.githubusercontent.com/diana12333/CourseCode/master/Advanced%20R/Demographics.csv"),col_names = T)
+Assess_original <- read_csv(url("https://raw.githubusercontent.com/diana12333/CourseCode/master/Advanced%20R/Assessment_original.csv"),col_names = T)
+Assess_makeup<-read_csv(url("https://raw.githubusercontent.com/diana12333/CourseCode/master/Advanced%20R/Assessment_makeup.csv"),col_names = T)
+```
+
+## Self defined function
+
+###Short inline functions for concise considerarion
+
+count_na—— ount the total number of NA   \
+
+RowMeans/RowSums/RowMax——rowmeans  ，rowsums,rowmax function with default setting ignoring NAs   \n
+```{r 3}
+count_na <- function(x) sum(is.na(x))
+RowMeans <- function(x) rowMeans(x,na.rm = TRUE)
+RowSums <- function(x) rowSums(x,na.rm = TRUE)
+RowMax <- function(x) apply(x,1,function(x) max(x,na.rm = TRUE))
+```
+
+## Transfom and combine data
+```{r 4}
+#combind the assesment data(use make up to update the scales in orignal assements)
+combined <- rbind(Assess_original,Assess_makeup)
+combined$SCALE <- mapvalues(combined$SCALE,from=c("1","2","3","4","5"),to=paste("course",1:5,sep = ""))
+
+# tranfer the assesment to wide format and combined with the mainparticipant information
+FINALDATA <- spread(combined[!is.na(combined$QOL),],SCALE,QOL)%>%
+            right_join(.,Demographics,by="PATNO")
+
+#calculate the A/B/C score
+# with the aid of [count_na] to evaluate how many courses have missing values
+FINALDATA<- FINALDATA%>%
+            mutate( countna = apply(FINALDATA[,paste("course",1:5,sep = "")], 1, count_na))%>%
+            mutate( Ascore = ifelse(countna==0,.7*RowMeans(FINALDATA[,paste("course",1:4,sep = "")])+.3*course5,NA),
+                    Bscore = ifelse(countna<=1,.5*RowMeans(FINALDATA[,paste("course",1:3,sep = "")])+
+                                      .5*RowMeans(FINALDATA[,paste("course",4:5,sep = "")]),NA),
+                    Cscore = ifelse(Residency==2,25+0.5*RowMeans(FINALDATA[,paste("course",1:5,sep = "")]),
+                                   (50*countna+RowSums(FINALDATA[,paste("course",1:5,sep = "")]))/5))
+#1.caculate the HighestQOL 
+#2.only keep the variable need in the final report
+#3.round scores to 2 decimals
+#4.order by PATNO
+FINALDATA<- FINALDATA%>%
+           mutate(High = RowMax(FINALDATA[,c("Ascore","Bscore","Cscore")]))%>%
+           mutate(HighestQOL = case_when(
+                            High==Ascore ~ "A",
+                            High==Bscore ~ "B",
+                            High==Cscore ~ "C"
+                    ))%>%
+          select(PATNO, Year, Residency,Major,Ascore,Bscore,Cscore,HighestQOL)%>%
+           mutate_if(is.numeric, round, 2)%>%arrange(PATNO)
+```
+
+##Create the labels for factor variables,ie.
+
+1. Year:1 = Freshman, 2= Sophomore, 3=Junior, 4=Senior, 5=Senior Plus
+
+2. Residency: 1=In State, 2=Out of State\\
+
+3. Major: 1=Chemistry, 2=Biology, 3=Mathematics, 4=Physics, 5=Psychology, 6=Other
+
+```{r 5}
+FINALDATA$Year <- mapvalues(FINALDATA$Year,  from = c("1","2","3","4","5"), to = c("Freshman","Sophomore","Junior","Senior","Senior Plus") )
+FINALDATA$Residency <- mapvalues(FINALDATA$Residency,from=c("1","2"),to=c("In State","Out of State"))
+FINALDATA$Major <- mapvalues(FINALDATA$Major, from = c("1","2","3","4","5","6"),to = c("Chemistry", "Biology", "Mathematics", "Physics", "Psychology", "Other"))
+```
+
+
+
+## Final Ressult Output
+Deliverable Output
+```{r 6}
+#1
+kable(FINALDATA[1:15,], caption = "the first 15 observations from FINALDATA")
+
+#2
+kable(table(FINALDATA$HighestQOL),caption ="A table with the frequency distribution of HighestQOL")
+
+
+#3
+kable(table(FINALDATA$HighestQOL,FINALDATA$Residency),caption = "A table with the frequency distribution of HighestQOL by Residency")
+```
